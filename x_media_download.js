@@ -7,8 +7,8 @@
 // @description:ja ワンクリックで動画・画像を保存する。
 // @description:zh-cn 一键保存视频/图片
 // @description:zh-tw 一鍵保存視頻/圖片
-// @version     1.27
-// @author      AMANE
+// @version     1.28
+// @author      AMANE & EndEdge
 // @namespace   none
 // @match       https://x.com/*
 // @match       https://mobile.x.com/*
