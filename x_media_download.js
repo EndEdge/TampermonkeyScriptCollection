@@ -19,8 +19,6 @@
 // @compatible  Chrome
 // @compatible  Firefox
 // @license     MIT
-// @downloadURL https://update.greasyfork.org/scripts/423001/Twitter%20Media%20Downloader.user.js
-// @updateURL https://update.greasyfork.org/scripts/423001/Twitter%20Media%20Downloader.meta.js
 // ==/UserScript==
 /* jshint esversion: 8 */
 
@@ -55,6 +53,10 @@ const TMD = (function () {
       article.dataset.detected = 'true';
       let media_selector = [
         'a[href*="/photo/1"]',
+        'div[data-testid="tweetPhoto"]', // 新版图片选择器
+        'div[data-testid="videoPlayer"]', // 新版视频选择器
+        'div[data-testid="videoComponent"]', // 视频组件
+        'div[data-testid="previewInterstitial"]', // 敏感内容预览
         'div[role="progressbar"]',
         'div[data-testid="playButton"]',
         'a[href="/settings/content_you_see"]', //hidden content
