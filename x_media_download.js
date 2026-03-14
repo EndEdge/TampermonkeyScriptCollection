@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name        Twitter Media Downloader
-// @name:ja     Twitter Media Downloader
-// @name:zh-cn  Twitter 媒体下载
-// @name:zh-tw  Twitter 媒體下載
+// @name        Twitter Media Downloader fix
+// @name:ja     Twitter Media Downloader fix
+// @name:zh-cn  Twitter 媒体下载 fix
+// @name:zh-tw  Twitter 媒體下載 fix
 // @description    Save Video/Photo by One-Click.
 // @description:ja ワンクリックで動画・画像を保存する。
 // @description:zh-cn 一键保存视频/图片
