@@ -7,7 +7,7 @@
 // @description:ja ワンクリックで動画・画像を保存する。
 // @description:zh-cn 一键保存视频/图片
 // @description:zh-tw 一鍵保存視頻/圖片
-// @version     1.28
+// @version     1.29
 // @author      AMANE & EndEdge
 // @namespace   none
 // @match       https://x.com/*
@@ -76,6 +76,12 @@ const TMD = (function () {
           btn_down.classList.replace("pull-left", "pull-right");
         } else {
           btn_down.querySelector('svg').innerHTML = this.svg;
+          btn_down.querySelectorAll('[disabled]').forEach(el => el.removeAttribute('disabled'));
+          btn_down.querySelectorAll('[aria-disabled="true"]').forEach(el => el.setAttribute('aria-disabled', 'false'));
+          btn_down.querySelectorAll('.r-icoktb').forEach(el => {
+            el.classList.remove('r-icoktb');
+            el.classList.add('r-1loqt21');
+          });
         }
         let is_exist = history.indexOf(status_id) >= 0;
         this.status(btn_down, 'tmd-down');
