@@ -7,7 +7,7 @@
 // @description:ja ワンクリックで動画・画像を保存する。
 // @description:zh-cn 一键保存视频/图片
 // @description:zh-tw 一鍵保存視頻/圖片
-// @version     1.29
+// @version     1.30
 // @author      AMANE & EndEdge
 // @namespace   none
 // @match       https://x.com/*
@@ -87,7 +87,11 @@ const TMD = (function () {
         this.status(btn_down, 'tmd-down');
         this.status(btn_down, is_exist ? 'completed' : 'download', is_exist ? lang.completed : lang.download);
         btn_group.insertBefore(btn_down, btn_share.nextSibling);
-        btn_down.onclick = () => this.click(btn_down, status_id, is_exist);
+        btn_down.onclick = e => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.click(btn_down, status_id, is_exist);
+        };
         if (show_sensitive) {
           let btn_show = article.querySelector('div[aria-labelledby] div[role="button"][tabindex="0"]:not([data-testid]) > div[dir] > span > span');
           if (btn_show) btn_show.click();
@@ -108,6 +112,7 @@ const TMD = (function () {
           img.parentNode.appendChild(btn_down);
           btn_down.onclick = e => {
             e.preventDefault();
+            e.stopPropagation();
             this.click(btn_down, status_id, is_exist, index);
           }
         });
@@ -116,15 +121,21 @@ const TMD = (function () {
     addButtonToMedia: function(listitems) {
       listitems.forEach(li => {
         if (li.dataset.detected) return;
+        let status_link = li.querySelector('a[href*="/status/"]');
+        if (!status_link) return;
         li.dataset.detected = 'true';
-        let status_id = li.querySelector('a[href*="/status/"]').href.split('/status/').pop().split('/').shift();
+        let status_id = status_link.href.split('/status/').pop().split('/').shift();
         let is_exist = history.indexOf(status_id) >= 0;
         let btn_down = document.createElement('div');
         btn_down.innerHTML = '<div><div><svg viewBox="0 0 24 24" style="width: 18px; height: 18px;">' + this.svg + '</svg></div></div>';
         btn_down.classList.add('tmd-down', 'tmd-media');
         this.status(btn_down, is_exist ? 'completed' : 'download', is_exist ? lang.completed : lang.download);
         li.appendChild(btn_down);
-        btn_down.onclick = () => this.click(btn_down, status_id, is_exist);
+        btn_down.onclick = e => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.click(btn_down, status_id, is_exist);
+        };
       });
     },
     click: async function (btn, status_id, is_exist, index) {
@@ -135,30 +146,31 @@ const TMD = (function () {
       let json = await this.fetchJson(status_id);
       let tweet = json.legacy;
       let user = json.core.user_results.result.legacy;
-      let invalid_chars = {'\\': '＼', '\/': '／', '\|': '｜', '<': '＜', '>': '＞', ':': '：', '*': '＊', '?': '？', '"': '＂', '\u200b': '', '\u200c': '', '\u200d': '', '\u2060': '', '\ufeff': '', '🔞': ''};
-      let datetime = out.match(/{date-time(-local)?:[^{}]+}/) ? out.match(/{date-time(?:-local)?:([^{}]+)}/)[1].replace(/[\\/|<>*?:"]/g, v => invalid_chars[v]) : 'YYYYMMDD-hhmmss';
+      let datetime = out.match(/{date-time(-local)?:[^{}]+}/) ? this.sanitizeFilenamePart(out.match(/{date-time(?:-local)?:([^{}]+)}/)[1], '-') : 'YYYYMMDD-hhmmss';
       let info = {};
       info['status-id'] = status_id;
-      info['user-name'] = user.name.replace(/([\\/|*?:"]|[\u200b-\u200d\u2060\ufeff]|🔞)/g, v => invalid_chars[v]);
-      info['user-id'] = user.screen_name;
+      info['user-name'] = this.sanitizeFilenamePart(user.name);
+      info['user-id'] = this.sanitizeFilenamePart(user.screen_name);
       info['date-time'] = this.formatDate(tweet.created_at, datetime);
       info['date-time-local'] = this.formatDate(tweet.created_at, datetime, true);
-      info['full-text'] = tweet.full_text.split('\n').join(' ').replace(/\s*https:\/\/t\.co\/\w+/g, '').replace(/[\\/|<>*?:"]|[\u200b-\u200d\u2060\ufeff]/g, v => invalid_chars[v]);
-      let medias = tweet.extended_entities && tweet.extended_entities.media;
-      if (index) medias = [medias[index - 1]];
+      info['full-text'] = this.sanitizeFilenamePart(tweet.full_text.split('\n').join(' ').replace(/\s*https:\/\/t\.co\/\w+/g, ''));
+      let medias = tweet.extended_entities && tweet.extended_entities.media || [];
+      if (index) medias = medias[index - 1] ? [medias[index - 1]] : [];
       if (medias.length > 0) {
         let tasks = medias.length;
         let tasks_result = [];
         medias.forEach((media, i) => {
-          info.url = media.type == 'photo' ? media.media_url_https + ':orig' : media.video_info.variants.filter(n => n.content_type == 'video/mp4').sort((a, b) => b.bitrate - a.bitrate)[0].url;
-          info.file = info.url.split('/').pop().split(/[:?]/).shift();
-          info['file-name'] = info.file.split('.').shift();
-          info['file-ext'] = info.file.split('.').pop();
-          info['file-type'] = media.type.replace('animated_', '');
-          info.out = (out.replace(/\.?{file-ext}/, '') + ((medias.length > 1 || index) && !out.match('{file-name}') ? '-' + (index ? index - 1 : i) : '') + '.{file-ext}').replace(/{([^{}:]+)(:[^{}]+)?}/g, (match, name) => info[name]);
+          info.url = this.mediaUrl(media);
+          let file = this.fileInfo(info.url, media);
+          info.file = this.sanitizeFilename(file.name + '.' + file.ext);
+          info['file-name'] = this.sanitizeFilenamePart(file.name);
+          info['file-ext'] = this.sanitizeFilenamePart(file.ext);
+          info['file-type'] = this.sanitizeFilenamePart(media.type.replace('animated_', ''));
+          info.out = this.sanitizeFilename((out.replace(/\.?{file-ext}/, '') + ((medias.length > 1 || index) && !out.match('{file-name}') ? '-' + (index ? index - 1 : i) : '') + '.{file-ext}').replace(/{([^{}:]+)(:[^{}]+)?}/g, (match, name) => info[name] || ''));
           this.downloader.add({
             url: info.url,
             name: info.out,
+            method: media.type == 'photo' ? 'blob' : 'gm',
             onload: () => {
               tasks -= 1;
               tasks_result.push(((medias.length > 1 || index) ? (index ? index : i + 1) + ': ' : '') + lang.completed);
@@ -173,7 +185,8 @@ const TMD = (function () {
             },
             onerror: result => {
               tasks = -1;
-              tasks_result.push((medias.length > 1 ? i + 1 + ': ' : '') + result.details.current);
+              let current = result && result.details && result.details.current || 'DOWNLOAD_FAILED';
+              tasks_result.push((medias.length > 1 ? i + 1 + ': ' : '') + current);
               this.status(btn, 'failed', tasks_result.sort().join('\n'));
             }
           });
@@ -189,6 +202,63 @@ const TMD = (function () {
       }
       if (title) btn.title = title;
       if (style) btn.style.cssText = style;
+    },
+    filenameReplacementMap: {
+      '\\': '\uff3c',
+      '/': '\uff0f',
+      '|': '\uff5c',
+      '<': '\uff1c',
+      '>': '\uff1e',
+      ':': '\uff1a',
+      '*': '\uff0a',
+      '?': '\uff1f',
+      '"': '\uff02'
+    },
+    filenameMaxLength: 180,
+    replaceFilenameChars: function (value, replacementMap) {
+      let map = replacementMap || this.filenameReplacementMap;
+      return String(value || '')
+        .replace(/[\u200b-\u200d\u2060\ufeff]/g, '')
+        .replace(/[\x00-\x1f\x7f]/g, '')
+        .replace(/[\\/:*?"<>|]/g, char => map[char] || '_');
+    },
+    sanitizeFilenamePart: function (value, replacement) {
+      let replacementMap = replacement && typeof replacement == 'string'
+        ? {'\\': replacement, '/': replacement, '|': replacement, '<': replacement, '>': replacement, ':': replacement, '*': replacement, '?': replacement, '"': replacement}
+        : replacement;
+      return this.replaceFilenameChars(value, replacementMap);
+    },
+    sanitizeFilename: function (value) {
+      let filename = this.sanitizeFilenamePart(value).replace(/[. ]+$/g, '').trim();
+      filename = this.truncateFilename(filename, this.filenameMaxLength);
+      if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i.test(filename)) filename = '_' + filename;
+      return filename || 'twitter_media';
+    },
+    truncateFilename: function (filename, max_length) {
+      let chars = Array.from(filename);
+      if (!max_length || chars.length <= max_length) return filename;
+      let dot_index = filename.lastIndexOf('.');
+      let ext = dot_index > 0 && filename.length - dot_index <= 12 ? filename.slice(dot_index) : '';
+      let name = ext ? filename.slice(0, dot_index) : filename;
+      let keep = Math.max(1, max_length - Array.from(ext).length);
+      return Array.from(name).slice(0, keep).join('').replace(/[. ]+$/g, '') + ext;
+    },
+    mediaUrl: function (media) {
+      if (media.type != 'photo') {
+        return media.video_info.variants.filter(n => n.content_type == 'video/mp4').sort((a, b) => b.bitrate - a.bitrate)[0].url;
+      }
+      let url = new URL(media.media_url_https || media.media_url);
+      let file_ext = this.fileInfo(url.href, media).ext;
+      url.searchParams.set('format', file_ext);
+      url.searchParams.set('name', 'orig');
+      return url.href;
+    },
+    fileInfo: function (url, media) {
+      let parsed = new URL(url);
+      let file = parsed.pathname.split('/').pop().split(':').shift();
+      let ext = parsed.searchParams.get('format') || (file.match(/\.([^.]+)$/) || [])[1] || (media.type == 'photo' ? 'jpg' : 'mp4');
+      let name = file.replace(/\.[^.]+$/, '');
+      return {name: name, ext: ext};
     },
     settings: async function () {
       const $element = (parent, tag, style, content, css) => {
@@ -370,7 +440,7 @@ let tweet_result = tweet_detail.data.tweetResult.result;
       return o.replace(/(YY(YY)?|MMM?|DD|hh|mm|ss|h2|ap)/g, n => ('0' + v[n]).substr(-n.length));
     },
     downloader: (function () {
-      let tasks = [], thread = 0, max_thread = 2, retry = 0, max_retry = 2, failed = 0, notifier, has_failed = false;
+      let tasks = [], thread = 0, max_thread = 2, max_retry = 2, failed = 0, notifier, has_failed = false;
       return {
         add: function (task) {
           tasks.push(task);
@@ -387,6 +457,7 @@ let tweet_result = tweet_detail.data.tweetResult.result;
           this.update();
         },
         start: function (task) {
+          if (task.method == 'blob') return this.startBlob(task);
           this.update();
           return new Promise(resolve => {
             GM_download({
@@ -407,17 +478,65 @@ let tweet_result = tweet_detail.data.tweetResult.result;
             });
           });
         },
+        startBlob: function (task) {
+          return fetch(task.url)
+            .then(response => {
+              if (!response.ok) throw new Error('HTTP_' + response.status);
+              return response.blob();
+            })
+            .then(blob => {
+              let url = URL.createObjectURL(blob);
+              let link = document.createElement('a');
+              link.href = url;
+              link.download = task.name;
+              link.style.display = 'none';
+              document.body.appendChild(link);
+              link.click();
+              setTimeout(() => {
+                URL.revokeObjectURL(url);
+                link.remove();
+              }, 1000);
+              task.onload();
+            })
+            .catch(error => {
+              this.retry(task, {error: error && error.message || String(error), details: {current: 'BLOB_DOWNLOAD_FAILED'}});
+            });
+        },
         retry: function (task, result) {
-          retry += 1;
-          if (retry == 3) max_thread = 1;
-          if (task.retry && task.retry >= max_retry ||
-              result.details && result.details.current == 'USER_CANCELED') {
-            task.onerror(result);
-            failed += 1;
+          let current = this.downloadError(result);
+          if (this.isCanceled(result) || current == 'not_succeeded') {
+            this.fail(task, {details: {current: current || 'USER_CANCELED'}});
+            return;
+          }
+          task.retry = (task.retry || 0) + 1;
+          if (task.retry >= max_retry) max_thread = 1;
+          if (task.retry > max_retry) {
+            this.fail(task, {details: {current: current || 'DOWNLOAD_FAILED'}});
           } else {
-            if (max_thread == 1) task.retry = (task.retry || 0) + 1;
             this.add(task);
           }
+        },
+        fail: function (task, result) {
+          task.onerror(result);
+          failed += 1;
+        },
+        downloadError: function (result) {
+          if (!result) return '';
+          if (typeof result == 'string') return result;
+          if (result.error) return result.error;
+          if (result.details && result.details.current) return result.details.current;
+          if (result.details && result.details.error) return result.details.error;
+          return '';
+        },
+        isCanceled: function (result) {
+          let values = [];
+          let scan = value => {
+            if (!value) return;
+            if (typeof value == 'string') values.push(value);
+            else if (typeof value == 'object') Object.keys(value).forEach(key => scan(value[key]));
+          };
+          scan(result);
+          return values.some(value => /USER_CANCELED|USER_CANCELLED|CANCELED|CANCELLED/i.test(value));
         },
         update: function() {
           if (!notifier) {
