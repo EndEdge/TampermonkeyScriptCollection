@@ -9,7 +9,9 @@
 // @match        https://kemono.party/*
 // @match        https://kemono.su/*
 // @match        https://kemono.cr/*
+// @match        https://pawchive.st/*
 // @icon         https://kemono.party/favicon.ico
+// @connect      file.pawchive.st
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -46,7 +48,6 @@
 
     button.onclick = function () {
         var imgs = getImageLinks();
-        // console.log(imgs);
         downloadImages(...imgs);
     }
 
@@ -58,7 +59,6 @@
     buttonZip.onclick = function () {
         zip = new JSZip();
         var imgs = getImageLinks();
-        // console.log(imgs);
         downloadImages_ZIP(...imgs);
     }
 
@@ -70,43 +70,30 @@
         modifiedNames();
     }
 
-    const p = document.getElementsByClassName("post__actions")[0];
-    if (p) {
-        observer.disconnect();
-        // 执行操作
-        p.appendChild(button);
-        p.appendChild(buttonZip);
-        p.appendChild(buttonModifiedPicName)
-        p.appendChild(checkbox);
-        p.appendChild(checkboxLabel);
+    function appendButtons() {
+        var p = document.getElementsByClassName("post__actions")[0];
+        if (p && !p.querySelector(".post__download")) {
+            p.appendChild(button);
+            p.appendChild(buttonZip);
+            p.appendChild(buttonModifiedPicName);
+            p.appendChild(checkbox);
+            p.appendChild(checkboxLabel);
+            return true;
+        }
+        return false;
+    }
+
+    if (!appendButtons()) {
+        var observer = new MutationObserver(function () {
+            if (appendButtons()) {
+                observer.disconnect();
+            }
+        });
         observer.observe(document.body, {
             childList: true,
             subtree: true,
         });
     }
-
-    const observer = new MutationObserver((mutations) => {
-        const p = document.getElementsByClassName("post__actions")[0];
-        if (p) {
-            observer.disconnect();
-            // 执行操作
-            p.appendChild(button);
-            p.appendChild(buttonZip);
-            p.appendChild(buttonModifiedPicName)
-            p.appendChild(checkbox);
-            p.appendChild(checkboxLabel);
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true,
-            });
-        }
-    });
-
-    // 监听整个文档的变化
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-    });
 
     //var p = document.getElementsByClassName("post__actions")[0];
     //p.appendChild(button);
@@ -205,8 +192,16 @@
         return str.replace(/\s+/g, "").replace(/[\r\n]/g, "");
     }
 
+    function getFileThumbs() {
+        var list = document.getElementsByClassName("fileThumb image-link");
+        if (list.length === 0) {
+            list = document.getElementsByClassName("fileThumb");
+        }
+        return list;
+    }
+
     function getImageLinks() {
-        var thumbnail_list = document.getElementsByClassName("fileThumb image-link");
+        var thumbnail_list = getFileThumbs();
         var imgs = [];
         for (let index = 0; index < thumbnail_list.length; index++) {
             if (index === 0 && !document.getElementById("needFirstImageCheckbox").checked) {
@@ -218,7 +213,7 @@
     }
 
     function modifiedNames() {
-        var thumbnail_list = document.getElementsByClassName("fileThumb image-link");
+        var thumbnail_list = getFileThumbs();
         var name = document.getElementsByClassName("post__title")[0].getElementsByTagName("span")[0].textContent;
         for (let index = 0; index < thumbnail_list.length; index++) {
             if (index === 0 && !document.getElementById("needFirstImageCheckbox").checked) {
